@@ -6,14 +6,15 @@
 #include <libswscale/swscale.h>
 
 #include <SDL.h>
+#include <SDL_image.h>
 #include <SDL_thread.h>
 
-#define FRAME 5
+#define FRAME 300
 
 const int ROW_ALIGNMENT = 16;
 const int FRAME_PADDING = 4;
 
-SDL_Surface* sample = NULL;
+SDL_Surface* rgba_surface = NULL;
 
 typedef struct PacketQueueEntry 
 {
@@ -171,11 +172,7 @@ enum AVPixelFormat get_pixel_format(SDL_Surface* surf) {
     uint32_t pixel;
     uint8_t* bytes = (uint8_t*)&pixel;
 
-    printf("h");
-    printf("h");
     pixel = SDL_MapRGBA(surf->format, 1, 2, 3, 4);
-    printf("h");
-    printf("h");
 
     enum AVPixelFormat fmt;
 
@@ -240,6 +237,7 @@ SurfaceQueueEntry* decode_video_frame(Video* ms) {
 
     double pts = ms->video_decode_frame->best_effort_timestamp * av_q2d(ms->ctx->streams[ms->video_stream]->time_base);
 
+    /*
     // If we're behind on decoding the frame, drop it.
     if (ms->video_pts_offset && (ms->video_pts_offset + pts < ms->video_read_time)) {
 
@@ -253,6 +251,8 @@ SurfaceQueueEntry* decode_video_frame(Video* ms) {
             return NULL;
         }
     }
+    */
+    SDL_Surface* sample = rgba_surface;
 
     ms->sws = sws_getCachedContext(
         ms->sws,
@@ -263,7 +263,7 @@ SurfaceQueueEntry* decode_video_frame(Video* ms) {
 
         ms->video_decode_frame->width,
         ms->video_decode_frame->height,
-        AV_PIX_FMT_RGBA,
+        get_pixel_format(rgba_surface),
 
         SWS_POINT,
 
@@ -322,7 +322,7 @@ static void enqueue_surface(SurfaceQueueEntry** queue, SurfaceQueueEntry* sqe) {
 
 int main(int argc, char* argv[]) 
 {
-    SDL_RWops* rwops = SDL_RWFromFile("D:\\program\\renpy\\SummerFlower_Mode\\game\\video\\lastwish.webm", "r");
+    SDL_RWops* rwops = SDL_RWFromFile("D:\\program\\renpy\\SummerFlower_Mode\\game\\video\\bg\\bgi1.webm", "rb");
     if (!rwops)
         return -1;
 
@@ -352,7 +352,7 @@ int main(int argc, char* argv[])
     ctx->pb = io_context;
     ctx->flags |= AVFMT_FLAG_CUSTOM_IO;
 
-    if (avformat_open_input(&ctx, "D:\\program\\renpy\\SummerFlower_Mode\\game\\video\\lastwish.webm", NULL, NULL))
+    if (avformat_open_input(&ctx, "D:\\program\\renpy\\SummerFlower_Mode\\game\\video\\bg\\bgi1.webm", NULL, NULL))
         return -1;
 
     if (avformat_find_stream_info(ctx, NULL))
@@ -390,11 +390,13 @@ int main(int argc, char* argv[])
     if (avcodec_open2(codec_ctx, codec, &opts))
         return -1;
 
+    IMG_Init(IMG_INIT_PNG);
+
     v->video_context = codec_ctx;
     v->sws = sws_alloc_context();
     v->surface_queue_size = 0;
     v->video_finished = 0;
-    sample = SDL_malloc(sizeof(SDL_Surface));
+    rgba_surface = IMG_Load("D:\\image\\rgba.png");
     // v->video_packet_queue = *(PacketQueue*)(av_malloc(sizeof(PacketQueue)));
 
     while (!v->video_finished)
@@ -423,11 +425,42 @@ int main(int argc, char* argv[])
         }
     }
 
-    printf("%d\n", v->surface_queue->w);
-    printf("%d\n", v->surface_queue->next->w);
-    printf("%d\n", v->surface_queue->next->next->w);
-    printf("%d\n", v->surface_queue->next->next->next->w);
-    printf("%d\n", v->surface_queue->next->next->next->next->w);
+    SDL_Window* window;
+    SDL_Renderer* renderer;
+
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        return -1;
+    }
+
+    window = SDL_CreateWindow("Test", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, SDL_WINDOW_SHOWN);
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    SDL_Surface* w = SDL_GetWindowSurface(window);
+    SDL_Rect r = {0,0, 1280, 720 };
+    SDL_Event e;
+    SurfaceQueueEntry* first = v->surface_queue;
+    for (int i = 0; i < FRAME; i++) {
+        while(SDL_PollEvent(&e) == 1) { }
+
+        SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, SDL_CreateRGBSurfaceFrom(
+            first->pixels,
+            first->w,
+            first->h,
+            first->format->BitsPerPixel,
+            first->pitch,
+            first->format->Rmask,
+            first->format->Gmask,
+            first->format->Bmask,
+            first->format->Amask
+        ));
+            SDL_RenderCopy(renderer, t,&r, &r);
+            SDL_RenderPresent(renderer);
+        printf("%d %d %d %d\n", first->format->Rmask,
+            first->format->Gmask,
+            first->format->Bmask,
+            first->format->Amask);
+        first = first->next;
+        SDL_Delay(50);
+    }
     printf("done");
 
     return 0;
