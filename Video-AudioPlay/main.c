@@ -428,8 +428,6 @@ int main(int argc, char* argv[])
     printf("%d\n", v->surface_queue->next->next->w);
     printf("%d\n", v->surface_queue->next->next->next->w);
     printf("%d\n", v->surface_queue->next->next->next->next->w);
-
-
     printf("done");
 
     return 0;
