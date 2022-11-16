@@ -64,7 +64,7 @@ int main(int argc, char argv[])
 		return -1;
 	v->ctx = ctx;
 
-	if (avformat_open_input(&ctx, "Your File Directory", NULL, NULL))
+	if (avformat_open_input(&ctx, "D:\\source\\video\\ed.webm", NULL, NULL))
 		return -1;
 
 
@@ -123,7 +123,7 @@ int main(int argc, char argv[])
 	SDL_Renderer* renderer;
 	SDL_Event e;
 	SDL_Rect render = { 0, 0, 1920, 1080 };
-	SDL_Rect Print = { 100, 200, 720, 450 };
+	SDL_Rect Print = { 0, 0, 1280, 720 };
 
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
 		return -1;
