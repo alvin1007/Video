@@ -6,7 +6,10 @@
 #include <libswscale/swscale.h>
 
 #include <SDL.h>
-#include <SDL_image.h>
+#include <SDL_mixer.h>
+#include <SDL_thread.h>
+
+#include <time.h>
 
 typedef struct Video
 {
@@ -20,12 +23,19 @@ typedef struct Video
 
 	int videoStream;
 	int videoFinished;
+
+	int time;
+	SDL_mutex* lock;
+
 } Video;
 
-void DecodeFrame(Video* v)
+void DecodeFrame(Video* v, int index)
 {
-	v->frame = av_frame_alloc();
+	if (index < v->codec_ctx->frame_number)
+		return;
 
+	AVFrame* frame = av_frame_alloc();
+		
 	for (;;)
 	{
 		int ret;
@@ -41,9 +51,20 @@ void DecodeFrame(Video* v)
 
 		ret = avcodec_send_packet(v->codec_ctx, pkt);
 
-		ret = avcodec_receive_frame(v->codec_ctx, v->frame);
+		if (ret == AVERROR_EOF)
+		{
+			av_packet_unref(pkt);
+			break;
+		}
 
-		if (ret == AVERROR(EAGAIN)) {
+		ret = avcodec_receive_frame(v->codec_ctx, frame);
+
+		if (ret == AVERROR(EAGAIN))
+			continue;
+
+		if (index > v->codec_ctx->frame_number)
+		{
+			av_packet_unref(pkt);
 			continue;
 		}
 
@@ -51,6 +72,39 @@ void DecodeFrame(Video* v)
 
 		break;
 	}
+	// AVFrame* del = v->frame;
+	v->frame = frame;
+}
+
+int video_thread(void* data)
+{
+	Video* v = (Video*)data;
+	SDL_Rect render = { 0, 0, 1920, 1080 };
+	int delay = 1000 / 30;
+	v->time = clock();
+
+	for(;;)
+	{
+		SDL_LockMutex(v->lock);
+		DecodeFrame(v, (clock() - v->time) / (1000 / 30));
+	
+		SDL_UpdateYUVTexture(
+			v->t,
+			&render,
+			v->frame->data[0],
+			v->frame->linesize[0],
+			v->frame->data[1],
+			v->frame->linesize[1],
+			v->frame->data[2],
+			v->frame->linesize[2]
+		);
+
+		av_frame_free(&v->frame);
+		SDL_UnlockMutex(v->lock);
+		SDL_Delay(delay);
+	}
+
+	return 0;
 }
 
 int main(int argc, char argv[])
@@ -63,15 +117,20 @@ int main(int argc, char argv[])
 	if (!ctx)
 		return -1;
 	v->ctx = ctx;
+	// D:\\video\\pentool_AME\\main_1.mp4
+	// D:\\video\\clock_AME\\main_2.mp4
+	// D:\\source\\video\\bg\\bg32.webm
 
-	if (avformat_open_input(&ctx, "D:\\source\\video\\ed.webm", NULL, NULL))
+
+	if (avformat_open_input(&ctx, "D:\\source\\video\\lastwish.webm", NULL, NULL))
 		return -1;
 
 
 	if (avformat_find_stream_info(ctx, NULL))
 		return -1;
-
+	
 	v->videoStream = -1;
+
 
 	for (unsigned int i = 0; i < ctx->nb_streams; i++)
 	{
@@ -122,15 +181,24 @@ int main(int argc, char argv[])
 	SDL_Window* window;
 	SDL_Renderer* renderer;
 	SDL_Event e;
-	SDL_Rect render = { 0, 0, 1920, 1080 };
-	SDL_Rect Print = { 0, 0, 1280, 720 };
+	SDL_Rect print = { (1280 - 640) / 2, (720 - 360) / 2, 640, 360};
+	int quit = 0;
+	int x, y = 0;
+	int nowClick = 0;
+	int pts = 0;
+	int delay = 0;
+	// int fullscreen = 0;
 
-	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+	if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO|SDL_INIT_EVENTS) < 0) {
 		return -1;
 	}
 
+	Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048);
+
 	window = SDL_CreateWindow("Test", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, SDL_WINDOW_SHOWN);
 	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+	Mix_Music* music = Mix_LoadMUS("D:\\program\\renpy\\SummerFlower_Mode\\game\\sounds\\lastwish.ogg");
+	Mix_PlayMusic(music, 1);
 	v->t = SDL_CreateTexture(
 		renderer,
 		SDL_PIXELFORMAT_YV12, 
@@ -138,28 +206,52 @@ int main(int argc, char argv[])
 		v->codec_ctx->width,
 		v->codec_ctx->height
 	);
+	v->lock = SDL_CreateMutex();
+	SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
 
-	for (;;)
+	SDL_CreateThread(video_thread, "video_thread", v);
+
+	while (!quit)
 	{
-		while (SDL_PollEvent(&e) == 1) {}
-
-		DecodeFrame(v);
-		SDL_UpdateYUVTexture(
-			v->t,
-			&render,
-			v->frame->data[0],
-			v->frame->linesize[0],
-			v->frame->data[1],
-			v->frame->linesize[1],
-			v->frame->data[2],
-			v->frame->linesize[2]
-		);
+		while (SDL_PollEvent(&e) == 1)
+		{
+			switch (e.type)
+			{
+			case SDL_QUIT:
+				quit = 1;
+				break;
+			case SDL_MOUSEBUTTONDOWN:
+				SDL_GetMouseState(&x, &y);
+				SDL_Rect t = { x - 320, y - 180, 640, 360 };
+				print = t;
+				nowClick = 1;
+				break;
+			case SDL_MOUSEMOTION:
+				if (nowClick)
+				{
+					SDL_GetMouseState(&x, &y);
+					SDL_Rect t = { x - 320, y - 180, 640, 360 };
+					print = t;
+				}
+				break;
+			case SDL_MOUSEBUTTONUP:
+				nowClick = 0;
+				break;
+			case SDL_KEYDOWN:
+				if (e.key.keysym.sym == SDLK_f)
+					SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+			}
+		}
 
 		SDL_RenderClear(renderer);
-		SDL_RenderCopy(renderer, v->t, NULL, &Print);
-		SDL_RenderPresent(renderer);
+		SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF);
 
-		SDL_Delay(20);
+		SDL_LockMutex(v->lock);
+		SDL_RenderCopy(renderer, v->t, NULL, NULL);
+		SDL_UnlockMutex(v->lock);
+
+		SDL_RenderPresent(renderer);
+		
 	}
 
 	return 0;

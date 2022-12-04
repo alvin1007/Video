@@ -104,13 +104,13 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>D:\program\SDL2-2.0.22\include;D:\program\SDL2_image-2.6.2\include;D:\program\ffmpeg-master-latest-win64-gpl-shared\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\program\SDL2-2.0.22\include;D:\program\SDL2_image-2.6.2\include;D:\program\ffmpeg-master-latest-win64-gpl-shared\include;D:\program\SDL2_mixer-2.6.2\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>D:\program\SDL2-2.0.22\lib\x64;D:\program\SDL2_image-2.6.2\lib\x64;D:\program\ffmpeg-master-latest-win64-gpl-shared\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>SDL2.lib;SDL2main.lib;avcodec.lib;avformat.lib;avutil.lib;swresample.lib;swscale.lib;avdevice.lib;avfilter.lib;SDL2_image.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>D:\program\SDL2-2.0.22\lib\x64;D:\program\SDL2_image-2.6.2\lib\x64;D:\program\ffmpeg-master-latest-win64-gpl-shared\lib;D:\program\SDL2_mixer-2.6.2\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>SDL2.lib;SDL2main.lib;avcodec.lib;avformat.lib;avutil.lib;swresample.lib;swscale.lib;avdevice.lib;avfilter.lib;SDL2_image.lib;SDL2_mixer.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
