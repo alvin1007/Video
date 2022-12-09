@@ -1,8 +1,5 @@
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
-#include <libswresample/swresample.h>
-#include <libavutil/time.h>
-#include <libavutil/pixfmt.h>
 #include <libswscale/swscale.h>
 
 #include <SDL.h>
@@ -10,6 +7,8 @@
 #include <SDL_thread.h>
 
 #include <time.h>
+#include <windows.h> 
+#pragma comment(lib, "Winmm.lib")
 
 typedef struct Video
 {
@@ -24,7 +23,8 @@ typedef struct Video
 	int videoStream;
 	int videoFinished;
 
-	int time;
+	unsigned long starttime;
+	double difftime;
 	SDL_mutex* lock;
 
 } Video;
@@ -81,27 +81,33 @@ int video_thread(void* data)
 	Video* v = (Video*)data;
 	SDL_Rect render = { 0, 0, 1920, 1080 };
 	int delay = 1000 / 30;
-	v->time = clock();
 
 	for(;;)
 	{
 		SDL_LockMutex(v->lock);
-		DecodeFrame(v, (clock() - v->time) / (1000 / 30));
-	
-		SDL_UpdateYUVTexture(
-			v->t,
-			&render,
-			v->frame->data[0],
-			v->frame->linesize[0],
-			v->frame->data[1],
-			v->frame->linesize[1],
-			v->frame->data[2],
-			v->frame->linesize[2]
-		);
+		DecodeFrame(v, (int)((timeGetTime() - v->starttime) / (1000.0 / 24.0)));
 
-		av_frame_free(&v->frame);
+		// printf("%d %d\n", v->time.millitm, start.millitm);
+	
+		if (v->frame)
+		{
+			SDL_UpdateYUVTexture(
+				v->t,
+				&render,
+				v->frame->data[0],
+				v->frame->linesize[0],
+				v->frame->data[1],
+				v->frame->linesize[1],
+				v->frame->data[2],
+				v->frame->linesize[2]
+			);
+
+			av_frame_free(&v->frame);
+		}
+
 		SDL_UnlockMutex(v->lock);
-		SDL_Delay(delay);
+		
+		SDL_Delay(20);
 	}
 
 	return 0;
@@ -122,7 +128,7 @@ int main(int argc, char argv[])
 	// D:\\source\\video\\bg\\bg32.webm
 
 
-	if (avformat_open_input(&ctx, "D:\\source\\video\\lastwish.webm", NULL, NULL))
+	if (avformat_open_input(&ctx, "D:\\source\\ba.mp4", NULL, NULL))
 		return -1;
 
 
@@ -197,8 +203,7 @@ int main(int argc, char argv[])
 
 	window = SDL_CreateWindow("Test", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, SDL_WINDOW_SHOWN);
 	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-	Mix_Music* music = Mix_LoadMUS("D:\\program\\renpy\\SummerFlower_Mode\\game\\sounds\\lastwish.ogg");
-	Mix_PlayMusic(music, 1);
+	Mix_Music* music = Mix_LoadMUS("D:\\source\\baa.ogg");
 	v->t = SDL_CreateTexture(
 		renderer,
 		SDL_PIXELFORMAT_YV12, 
@@ -207,9 +212,15 @@ int main(int argc, char argv[])
 		v->codec_ctx->height
 	);
 	v->lock = SDL_CreateMutex();
-	SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+	// SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
 
+	Mix_PlayMusic(music, 1);
+
+	// SDL_Delay(500);
+
+	v->starttime = timeGetTime();
 	SDL_CreateThread(video_thread, "video_thread", v);
+	// SDL_Delay(50);
 
 	while (!quit)
 	{
@@ -243,6 +254,7 @@ int main(int argc, char argv[])
 			}
 		}
 
+		
 		SDL_RenderClear(renderer);
 		SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF);
 
